@@ -1,0 +1,39 @@
+# 🐍 Python
+__pycache__/
+*.py[cod]
+*.egg
+*.egg-info/
+*.pyo
+*.pyd
+*.pkl
+*.log
+
+# 📦 Virtual environment
+LibraMind/
+
+
+# 📁 Environment files
+.env  # dotenv-style secrets
+
+# 📦 Package distribution
+build/
+dist/
+*.egg-info/
+
+# 🧪 Testing
+.coverage
+htmlcov/
+.tox/
+.pytest_cache/
+
+# 💻 VS Code
+.vscode/
+
+# 📂 OS-specific files
+.DS_Store
+Thumbs.db
+
+
+# Temporary files
+*_temp.py
+.python-version
