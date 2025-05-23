@@ -9,11 +9,12 @@ __pycache__/
 *.log
 
 # 📦 Virtual environment
-LibraMind/
+.LibraMind/
 
 
 # 📁 Environment files
-.env  # dotenv-style secrets
+.env
+.env.local
 
 # 📦 Package distribution
 build/
@@ -35,5 +36,7 @@ Thumbs.db
 
 
 # Temporary files
-*_temp.py
+*_temp
+_temp/*
+
 .python-version
