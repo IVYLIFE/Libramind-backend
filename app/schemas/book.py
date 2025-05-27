@@ -6,7 +6,7 @@ class Book(BaseModel):
     author   : str = Field(min_length=3)
     isbn     : str = Field(min_length=10, max_length=13)
     category : str = Field(min_length=3)
-    copies   : int = Field(ge=0)
+    copies   : int = Field(ge=1)
 
 
 class BookOut(Book):
