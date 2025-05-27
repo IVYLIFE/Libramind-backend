@@ -1,3 +1,3 @@
 from .book import Book, BookOut
-from .student import Student, StudentOut
+from .student import Student
 from .issue import IssuedBook, IssuedBookOut

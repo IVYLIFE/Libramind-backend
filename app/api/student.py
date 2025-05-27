@@ -1,30 +1,42 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Path
 from typing import List, Optional
 
-from app.schemas import Student, StudentOut
-import app.crud as student_crud
+from app.schemas import Student, IssuedBookOut
+import app.services as services
 
 router = APIRouter(prefix="/students", tags=["students"])
 
 
-@router.post("", response_model=StudentOut, status_code=201)
-def create_student(student: Student):
-    return student_crud.add_student(student)
-
-
-@router.get("", response_model=List[StudentOut])
+@router.get("", response_model=List[Student])
 def read_students(
-    department: Optional[str] = None,
-    semester: Optional[int] = None,
-    search: Optional[str] = None,
-    page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1),
+    department: Optional[str] = Query(None, description="Filter by department"),
+    semester: Optional[str] = Query(None, description="Filter by semester"),
+    search: Optional[str] = Query(
+        None, description="Search by partial match in name, roll number, or phone"
+    ),
+    page: int = Query(1, ge=1, description="Page number for pagination"),
+    limit: int = Query(10, ge=1, description="Number of students per page"),
 ):
-    return student_crud.list_students(department, semester, search, page, limit)
+    return services.list_students(department, semester, search, page, limit)
 
 
-@router.get("/by-identifier", response_model=StudentOut)
+
+@router.get("/{identifier}", response_model=Student)
 def read_student_by_identifier(
-    identifier: str = Query(..., description="Student name, roll number, or phone")
+    identifier: str = Path(..., description="Student name, roll number, or phone")
 ):
-    return student_crud.get_student_by_identifier(identifier)
+    return services.get_student_by_identifier(identifier)
+
+
+
+@router.post("", response_model=Student, status_code=201)
+def create_student(student: Student):
+    return services.add_student(student)
+
+
+
+@router.get("/{identifier}/books", response_model=List[IssuedBookOut])
+def read_student_books(
+    identifier: str,
+):
+    return services.get_student_books(identifier)
