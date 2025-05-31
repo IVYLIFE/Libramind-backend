@@ -7,6 +7,7 @@ import json
 from app.schemas import Book, BookOut, BookIssueRecord, IssueBook
 from app.database import BOOKS, ISSUED_BOOKS
 from app.services.student import get_student_by_identifier
+from app.utils.utils import check_is_isbn
 
 
 def list_books(title, author, category, page, limit) -> tuple[list[BookOut], dict]:
@@ -45,16 +46,26 @@ def list_books(title, author, category, page, limit) -> tuple[list[BookOut], dic
 
 
 
-def get_single_book(book_id: int) -> BookOut:
+def get_single_book(book_id: str) -> BookOut:
+    print(f"\n\n=========== [get_single_book({book_id})] ===========\n")
     try:
-        for book in BOOKS:
-            if book.id == book_id:
-                return book
+        books = BOOKS
+        key = "ISBN" if check_is_isbn(book_id) else "ID"
 
+        for book in books:
+            if (
+                book.id == int(book_id) or
+                book.isbn == book_id
+            ):
+                print("Book found")
+                print(book.model_dump())
+                print("\n========================================")
+                return book
+            
     except Exception as e:
         raise HTTPException(status_code=500, detail="An error occurred while fetching the book")
 
-    raise HTTPException(status_code=404, detail="Book not found")
+    raise HTTPException(status_code=404, detail=f"No book found with {key}: {book_id}")
 
 
 
@@ -95,10 +106,16 @@ def add_book(book: Book) -> dict:
     
 
 
-def update_book(book_id: int, updated: Book) -> BookOut:
+def update_book(book_id: str, updated: Book) -> BookOut:
     try:
-        for idx, book in enumerate(BOOKS):
-            if book.id == book_id:
+        books = BOOKS
+        key = "ISBN" if check_is_isbn(book_id) else "ID"
+
+        for idx, book in enumerate(books):
+            if (
+                book.id == int(book_id) or
+                book.isbn == book_id
+            ):
                 updated_book = BookOut(id=book_id, **updated.model_dump())
                 BOOKS[idx] = updated_book
                 return updated_book
@@ -109,13 +126,15 @@ def update_book(book_id: int, updated: Book) -> BookOut:
             detail="An error occurred while updating the book"
         )
 
-    raise HTTPException(status_code=404, detail="Book not found")
+    raise HTTPException(status_code=404, detail=f"No book found with {key}: {book_id}")
 
 
 
-def delete_book( book_id: int ) -> bool:
+def delete_book(book_id: str) -> bool:
     try:
-        for idx, book in enumerate(BOOKS):
+        books = BOOKS
+        key = "ISBN" if check_is_isbn(book_id) else "ID"
+        for idx, book in enumerate(books):
             if book.id == book_id:
                 del BOOKS[idx]
                 return True
@@ -126,11 +145,14 @@ def delete_book( book_id: int ) -> bool:
             detail=f"An error occurred while updating the book: {str(e)}"
         )
     
-    raise HTTPException(status_code=404, detail="Book not found")
+    raise HTTPException(status_code=404, detail=f"No book found with {key}: {book_id}")
 
 
 
-def issue_book(book_id: int, payload: IssueBook) -> BookIssueRecord:
+def issue_book(book_id: str, payload: IssueBook) -> BookIssueRecord:
+    
+    print(f"""\n\n=========== [issue_book({book_id} {payload})] ===========\n""")
+
     # Check if book exists
     book = get_single_book(book_id)
 

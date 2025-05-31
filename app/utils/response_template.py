@@ -1,27 +1,8 @@
 from fastapi.responses import JSONResponse
 from fastapi import status
 from typing import Any, Optional, Dict
-from datetime import date
 
-
-def format_dates_in_dict(data: dict) -> dict:
-    for key, value in data.items():
-        if isinstance(value, date):
-            data[key] = value.strftime("%d-%m-%Y")
-    return data
-
-
-def serialize(item):
-    if hasattr(item, "model_dump"):
-        item_dict = item.model_dump()
-    elif hasattr(item, "dict"):
-        item_dict = item.dict()
-    else:
-        item_dict = item
-
-    if isinstance(item_dict, dict):
-        return format_dates_in_dict(item_dict)
-    return item_dict
+from app.utils.utils import serialize
 
 
 def success_response(

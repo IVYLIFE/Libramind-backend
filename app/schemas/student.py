@@ -19,7 +19,7 @@ class Student(BaseModel):
         description="Department name"
     )
 
-    semester: str = Field(
+    semester: int = Field(
         ...,
         description="Semester (1 to 8)"
     )
@@ -41,7 +41,7 @@ class Student(BaseModel):
                     "name": "John Doe",
                     "roll_number": "A12345",
                     "department": "CS",
-                    "semester": "3",
+                    "semester": 3,
                     "phone": "1234567890",
                     "email": "john.doe@example.com"
                 }

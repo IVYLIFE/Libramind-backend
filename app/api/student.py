@@ -1,22 +1,30 @@
 from fastapi import APIRouter, status, Query, Path
-from typing import List, Optional
+from typing import Optional
 
-from app.schemas import Student, StudentResponse, BookIssueRecordResponse
+from app.schemas import (
+    Student, 
+    StudentResponse,
+    StudentResponse_Meta,
+    SuccessResponse,
+    BookIssueRecordResponse
+)
 from app.utils import success_response
 import app.services as services
 
 router = APIRouter(prefix="/students", tags=["students"])
 
 
-@router.get("", response_model=StudentResponse)
+@router.get("", response_model=StudentResponse_Meta)
 def fetch_students(
     department : Optional[str] = Query(None, description="Filter by department"),
-    semester   : Optional[str] = Query(None, description="Filter by semester"),
+    semester   : Optional[int] = Query(None, description="Filter by semester"),
     search     : Optional[str] = Query(None, description="Search by partial match in name, roll number, or phone"),
     page       : int           = Query(1, description="Page number for pagination", ge=1),
     limit      : int           = Query(10, description="Number of students per page", ge=1),
 ):
+    print("1")
     students, meta = services.list_students(department, semester, search, page, limit)
+    print("6")
     
     return success_response(
         status_code=status.HTTP_200_OK,
@@ -27,13 +35,15 @@ def fetch_students(
 
 
 
-@router.post("", response_model=dict)
+@router.post("", response_model=SuccessResponse)
 def add_student(student: Student):
     services.add_student(student)
 
     return success_response(
         status_code=201,
         message="Student Added Successfully.",
+        data=None,
+        meta=None,
     )
 
 

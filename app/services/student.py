@@ -4,27 +4,31 @@ from datetime import date
 import json
 
 from app.schemas import Student, BookIssueRecord
-from app.database import STUDENTS, ISSUED_BOOKS
+from app.database import BOOKS, STUDENTS, ISSUED_BOOKS
 
 
 def list_students( 
     department: str, 
-    semester: str, 
+    semester: int, 
     search: str, 
     page: int, 
     limit: int 
 ) -> tuple[list[Student], dict]:
+    print("2")
     try:
         filtered = STUDENTS
 
         filters = {}
         if department:
             filtered = [s for s in filtered if s.department.lower() == department.lower()]
+            print("3")
             filters["department"] = department
         if semester:
             filtered = [s for s in filtered if s.semester == semester]
+            print("4")
             filters["semester"] = semester
         if search:
+            print("5")
             lower_search = search.lower()
             filtered = [
                 s
@@ -58,6 +62,7 @@ def list_students(
 
 
 def get_student_by_identifier(identifier: str) -> Student:
+    print(f"\n\n=========== [get_student_by_identifier({identifier})] ===========\n")
     try:
         id_lower = identifier.lower()
         for student in STUDENTS:
@@ -66,6 +71,9 @@ def get_student_by_identifier(identifier: str) -> Student:
                 student.roll_number.lower() == id_lower or
                 student.phone == identifier
             ):
+                print("Student found")
+                print(student.model_dump())
+                print("\n========================================")
                 return student
     
     except Exception as e:
@@ -74,7 +82,7 @@ def get_student_by_identifier(identifier: str) -> Student:
             detail="An error occurred while fetching the student"
         )
     
-    raise HTTPException(status_code=404, detail="Student not found")
+    raise HTTPException(status_code=404, detail=f"Student not found for identifier = {identifier}")
 
 
 
@@ -152,6 +160,12 @@ def return_book(student_id: str, issued_book_id: int) -> BookIssueRecord:
 
         # Update the returned date to today
         book_to_return.returned_date = date.today()
+       
+        # Increase the book's available copies
+        for book in BOOKS:
+            if book.id == book_to_return.book_id:
+                book.copies += 1
+                break
 
         return book_to_return
 
