@@ -6,42 +6,73 @@ from app.schemas import BookOut, Student, BookIssueRecord
 
 T = TypeVar("T")
 
-class SuccessResponse(GenericModel, Generic[T]):
-    status_code: int
-    status: str
-    message: str
-    data: Optional[T] = None
-    meta: Optional[Dict[str, Any]]
-
 class ErrorResponse(BaseModel):
-    status_code: int
-    status: str
-    detail: Optional[str] = None
+    status_code: int = Field(..., example=400)
+    status: str = Field(..., example="failure")
+    detail: Optional[str] = Field(None, example="Something went Wrong")
 
+# Without data and meta
+class SuccessResponse(GenericModel, Generic[T]):
+    status_code: int = Field(..., example=200)
+    status: str = Field(..., example="success")
+    message: str = Field(..., example="Operation successful")
+
+
+# All fields : data + meta
+class BookResponse_Meta(SuccessResponse[List[BookOut]]):
+    data: List[BookOut] = Field(..., description="List of books")
+    meta: Dict[str, Any] = Field(
+        ...,
+        example={
+            "page": 1,
+            "limit": 10,
+            "total_books": 30,
+            "fetched_count": 10,
+            "filters_applied": {}
+        },
+        description="Pagination and filter info"
+    )
+
+    class Config:
+        title = "BookResponse_Meta"
+
+# Without meta
 class BookResponse(SuccessResponse[List[BookOut]]):
-    meta: Optional[Dict[str, Any]] = Field(None, example={
-        "page": 1,
-        "limit": 10,
-        "total_books": 25,
-        "fetched_count": 10,
-        "filters_applied": {}
-    })
-
+    data: List[BookOut] = Field(..., description="List of books")
     class Config:
         title = "BookResponse"
 
-class StudentResponse(SuccessResponse[List[Student]]):
-    meta: Optional[Dict[str, Any]] = Field(None, example={
-        "page": 1,
-        "limit": 10,
-        "total_students": 50,
-        "fetched_count": 10,
-        "filters_applied": {}
-    })
+
+
+
+class StudentResponse_Meta(SuccessResponse[List[Student]]):
+
+    data: List[Student] = Field(..., description="List of students")
+    meta: Dict[str, Any] = Field(
+        ..., 
+        example={
+            "page": 1,
+            "limit": 10,
+            "total_students": 50,
+            "fetched_count": 10,
+            "filters_applied": {}
+        },
+        description="Pagination and filter info"
+    )
+
 
     class Config:
         title = "StudentResponse"
 
+
+# Without meta
+class StudentResponse(SuccessResponse[List[BookOut]]):
+    data: List[Student] = Field(None, description="List of students")
+    class Config:
+        title = "StudentResponse"
+
+
 class BookIssueRecordResponse(SuccessResponse[List[BookIssueRecord]]):
+    data: Optional[List[BookIssueRecord]] = Field(..., description="List of book issue records")
     class Config:
         title = "BookIssueRecordResponse"
