@@ -1,11 +1,10 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
 class Student(BaseModel):
     
     name: str = Field(
         ..., 
         min_length=2, 
-        max_length=100, 
         description="Full name of the student"
     )
 
@@ -17,7 +16,6 @@ class Student(BaseModel):
     department: str = Field(
         ..., 
         min_length=2, 
-        max_length=50, 
         description="Department name"
     )
 
@@ -35,5 +33,18 @@ class Student(BaseModel):
     
     email: EmailStr = Field(..., description="Valid email address")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "name": "John Doe",
+                    "roll_number": "A12345",
+                    "department": "CS",
+                    "semester": "3",
+                    "phone": "1234567890",
+                    "email": "john.doe@example.com"
+                }
+            ]
+        }
+    )

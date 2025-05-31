@@ -1,10 +1,9 @@
-# routes.py
+# books.py
 from fastapi import APIRouter, status, Query, Path
 from typing import Optional
-import json
 
-from app.schemas import Book, BookResponse, BookListResponse, ErrorResponse
-from app.utils import success_response, error_response
+from app.schemas import Book, BookResponse, ErrorResponse, BookIssueRecordResponse, IssueBook
+from app.utils import success_response
 import app.services as services
 
 router = APIRouter(prefix="/books", tags=["books"])
@@ -12,7 +11,7 @@ router = APIRouter(prefix="/books", tags=["books"])
 
 @router.get( 
     "",
-    response_model=BookListResponse,
+    response_model=BookResponse,
     responses={500: {"model": ErrorResponse}}
 )
 def read_books(
@@ -34,32 +33,30 @@ def read_books(
 
 
 @router.get("/{book_id}", response_model=BookResponse )
-def read_book(book_id: int = Path(ge=1)):
-    book = services.get_book(book_id)
+def read_book(book_id: int = Path(ge=1,  description="ISBN or ID of Book")):
+    book = services.get_single_book(book_id)
 
     return success_response(
         status_code=status.HTTP_200_OK,
         message="Book fetched successfully",
-        data=book,
+        data=[book],
     )
 
 
 
-@router.post("", response_model=BookResponse )
+@router.post("", response_model=dict )
 def create_book(book: Book):    
     result = services.add_book(book)
 
     if result["updated"]:
         return success_response(
-            status_code=200,
+            status_code=201,
             message="Book already exists. Copies updated.",
-            data=result["book"]
         )
     else:
         return success_response(
             status_code=201,
             message="Book added successfully",
-            data=result["book"]
         )
 
     
@@ -77,7 +74,7 @@ def update_book( updated: Book, book_id: int = Path(ge=1)):
 
 
 
-@router.delete("/{book_id}", response_model=BookResponse )
+@router.delete("/{book_id}", response_model=dict )
 def delete_book(book_id: int = Path(ge=1)):
     
     if services.delete_book(book_id): 
@@ -85,3 +82,19 @@ def delete_book(book_id: int = Path(ge=1)):
             status_code=200,
             message="Book Deleted Successfully"
         )
+
+
+
+@router.post("/{book_id}", response_model=BookIssueRecordResponse, status_code=201)
+def issue_book_to_student(
+    book_id: int = Path(..., description="Book ID as unique identifier of Book"),
+    payload: IssueBook = ...
+):
+    issuance_record = services.issue_book(book_id, payload)
+
+    return success_response(
+        status_code=201,
+        message="Book issued successfully",
+        data=issuance_record
+    )
+
