@@ -1,25 +1,27 @@
 # books.py
-from fastapi import APIRouter, status, Query, Path
+from fastapi import APIRouter, status, Query, Path, Depends
+from sqlalchemy.orm import Session
 from typing import Optional
 
+from app.database import get_db
 from app.schemas import (
     Book,
     IssueBook,
     ErrorResponse,
     SuccessResponse,
     BookResponse,
-    BookResponse_Meta,
+    BookListResponse,
     BookIssueRecordResponse,
 )
+import app.services.book as services
 from app.utils import success_response
-import app.services as services
+
 
 router = APIRouter(prefix="/books", tags=["books"])
 
-
 @router.get( 
     "",
-    response_model=BookResponse_Meta,
+    response_model=BookListResponse,
     responses={500: {"model": ErrorResponse}}
 )
 def read_books(
@@ -28,8 +30,9 @@ def read_books(
     category : Optional[str] = Query(None),
     page     : int           = Query(1, ge=1),
     limit    : int           = Query(10, ge=1, le=50),
+    db       : Session       = Depends(get_db),
 ):
-    books, meta = services.list_books(title, author, category, page, limit)
+    books, meta = services.list_books(title, author, category, page, limit, db)
 
     return success_response(
         status_code=status.HTTP_200_OK,
@@ -41,8 +44,11 @@ def read_books(
 
 
 @router.get("/{book_id}", response_model=BookResponse )
-def read_book(book_id: str = Path(...,  description="Book ID/ISBN as unique identifier of Book")):
-    book = services.get_single_book(book_id)
+def read_book(
+    book_id: str = Path(...,  description="Book ID/ISBN as unique identifier of Book"),
+    db: Session = Depends(get_db)
+):
+    book = services.get_single_book(book_id, db)
 
     return success_response(
         status_code=status.HTTP_200_OK,
@@ -53,8 +59,9 @@ def read_book(book_id: str = Path(...,  description="Book ID/ISBN as unique iden
 
 
 @router.post("", response_model=SuccessResponse )
-def create_book(book: Book):    
-    result = services.add_book(book)
+def create_book(book: Book, db: Session = Depends(get_db)):    
+    result = services.add_book(book, db)
+
     message = "Book added successfully"
     if result["updated"]:
         message = "Book already exists. Copies updated."
@@ -69,9 +76,13 @@ def create_book(book: Book):
 
     
 @router.put("/{book_id}", response_model=BookResponse )
-def update_book( updated: Book, book_id: str = Path(..., description="Book ID/ISBN as unique identifier of Book")):
+def update_book(
+    updated: Book, 
+    book_id: str = Path(..., description="Book ID/ISBN as unique identifier of Book"),
+    db: Session = Depends(get_db)
+):
     print("Update is called")
-    book = services.update_book(book_id, updated)
+    book = services.update_book(book_id, updated, db)
 
     return success_response(
         status_code=200,
@@ -82,9 +93,12 @@ def update_book( updated: Book, book_id: str = Path(..., description="Book ID/IS
 
 
 @router.delete("/{book_id}", response_model=SuccessResponse )
-def delete_book(book_id: str = Path(..., description="Book ID/ISBN as unique identifier of Book")):
+def delete_book(
+    book_id: str = Path(..., description="Book ID/ISBN as unique identifier of Book"),
+    db: Session = Depends(get_db)
+):
     print("Delete is called")
-    if services.delete_book(book_id): 
+    if services.delete_book(book_id, db): 
         return success_response(
             status_code=200,
             message="Book Deleted Successfully"
@@ -95,11 +109,10 @@ def delete_book(book_id: str = Path(..., description="Book ID/ISBN as unique ide
 @router.post("/{book_id}", response_model=BookIssueRecordResponse, status_code=201)
 def issue_book_to_student(
     book_id: str = Path(..., description="Book ID/ISBN as unique identifier of Book"),
-    payload: IssueBook = ...
-):
-    print("Issue book is called")
-    
-    issuance_record = services.issue_book(book_id, payload)
+    payload: IssueBook = ...,
+    db: Session = Depends(get_db)
+):    
+    issuance_record = services.issue_book(book_id, payload, db)
 
     return success_response(
         status_code=201,
@@ -107,3 +120,5 @@ def issue_book_to_student(
         data=issuance_record
     )
 
+
+# =====================================================================

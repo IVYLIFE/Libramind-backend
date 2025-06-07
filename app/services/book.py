@@ -1,101 +1,176 @@
 # book.py
 from fastapi import HTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
 
+from typing import Union
 from datetime import date, timedelta
-import json
 
+from app.models import BookModel, IssuedBookModel
 from app.schemas import Book, BookOut, BookIssueRecord, IssueBook
-from app.database import BOOKS, ISSUED_BOOKS
 from app.services.student import get_student_by_identifier
 from app.utils.utils import check_is_isbn
 
 
-def list_books(title, author, category, page, limit) -> tuple[list[BookOut], dict]:
+def list_books(
+    title: str, 
+    author: str, 
+    category: str, 
+    page: int, 
+    limit: int, 
+    db: Session
+) -> tuple[list[BookOut], dict]:
+    print("1")
     try:
-        filtered = BOOKS
+        query = select(BookModel)
 
-        filters = {}
-        if title:
-            filtered = [book for book in filtered if title.lower() in book.title.lower()]
-            filters["title"] = title
-        if author:
-            filtered = [book for book in filtered if author.lower() in book.author.lower()]
-            filters["author"] = author
-        if category:
-            filtered = [book for book in filtered if category.lower() in book.category.lower()]
-            filters["category"] = category
+        if title: query = query.filter(BookModel.title.ilike(f"%{title}%"))
+        if author: query = query.filter(BookModel.author.ilike(f"%{author}%"))
+        if category: query = query.filter(BookModel.category.ilike(f"%{category}%"))
 
-        start = (page - 1) * limit
-        books = filtered[start : start + limit]
+        total = db.scalar(select(func.count()).select_from(query.subquery()))
+
+        books = db.execute(query.offset((page - 1) * limit).limit(limit)).scalars().all()
+        books = [BookOut.model_validate(book) for book in books]
 
         meta_info = {
             "page": page,
             "limit": limit,
-            "total_books": len(filtered),
+            "total_books": total,
             "fetched_count": len(books),
-            "filters_applied": filters
+            "filters_applied": {
+                k: v for k, v in {
+                    "title": title,
+                    "author": author,
+                    "category": category
+                }.items() if v
+            }
         }
 
         return books, meta_info
 
-    except Exception as e:
+    except Exception:
         raise HTTPException(
-            status_code=500, 
+            status_code=500,
             detail="Server error. Please try again later."
         )
 
 
 
-def get_single_book(book_id: str) -> BookOut:
+def get_single_book(
+    book_id: str,
+    db: Session,
+    as_orm: bool = False
+) -> Union[BookModel, BookOut]:
+    
+    """
+    Fetch a single book by ID or ISBN from the database.
+    Args:
+        book_id (str): The book identifier, either numeric ID or string ISBN.
+        as_orm (bool): This decide the result type
+        db (Session): SQLAlchemy database session.
+
+    Returns: Union[BookModel, BookOut]: Book schema or Book Model.
+    Raises:
+        HTTPException 404 if no book found.
+        HTTPException 500 on server error.
+    """
+
     print(f"\n\n=========== [get_single_book({book_id})] ===========\n")
     try:
-        books = BOOKS
-        key = "ISBN" if check_is_isbn(book_id) else "ID"
 
-        for book in books:
-            if (
-                book.id == int(book_id) or
-                book.isbn == book_id
-            ):
-                print("Book found")
-                print(book.model_dump())
-                print("\n========================================")
-                return book
+        book_id = book_id.replace("-", "").strip()
+        key = "isbn" if check_is_isbn(book_id) else "id"
+
+        query = select(BookModel).where(
+            (BookModel.id == int(book_id)) | (BookModel.isbn == book_id)
+        )
+
+
+        book = db.execute(query).scalars().first()
+
+        if not book:
+            print("Raising Error")
+            raise HTTPException(
+                status_code=404,
+                detail=f"No book found with {key.upper()}: {book_id}"
+            )
+        
+        if as_orm:
+            print("Book ORM : ", book)
+            print(f"\n\n=========================================================\n")
+            return book
+
+        # Convert ORM model to Pydantic schema (BookOut)
+        book = BookOut.model_validate(book)
+        print("Book Model : ", book)
+        print(f"\n\n=========================================================\n")
+        return book
+
+
+    except HTTPException:
+        raise
             
     except Exception as e:
         raise HTTPException(status_code=500, detail="An error occurred while fetching the book")
 
-    raise HTTPException(status_code=404, detail=f"No book found with {key}: {book_id}")
 
 
+def add_book(book: Book, db: Session) -> dict:
+    """
+    Add a new book to the database or update copies if it already exists.
+    Args:
+        book (BookCreate): Book input schema.
+        db (Session): SQLAlchemy DB session.
 
-def add_book(book: Book) -> dict:
+    Returns: dict: Result indicating whether the book was updated or newly added.
+    Raises: HTTPException: On ISBN conflict or DB errors.
+    """
+
+    print(f"\n\n=========== [add_book({book})] ===========\n")
+
+
     try:
-        for existing_book in BOOKS:
-            if(existing_book.isbn == book.isbn) :
-                if (
-                    existing_book.title == book.title and
-                    existing_book.author == book.author and
-                    existing_book.category == book.category
-                ):
-                    existing_book.copies += book.copies
-                    return {
-                        "updated": True,
-                        "book": existing_book
-                    }
-                else:
-                    raise HTTPException(
-                        status_code=409,
-                        detail="ISBN already belongs to a different book"
-                    )
+        # 1. Check if book already exists by ISBN
+        query = select(BookModel).where((BookModel.isbn == book.isbn))
+        existing_book = db.execute(query).scalars().first()
 
-        new_id = max((book.id for book in BOOKS), default=0) + 1
-        new_book = BookOut(id=new_id, **book.model_dump())
-        BOOKS.append(new_book)
+        if existing_book:
+            # 2. If title/author/category match → increase copies
+            if (
+                existing_book.title == book.title and
+                existing_book.author == book.author and
+                existing_book.category == book.category
+            ):
+                existing_book.copies += book.copies
+                print("It's an existing Book update copy")
+                db.commit()
+                db.refresh(existing_book)
+
+                return {
+                    "updated": True,
+                    "book": BookOut.model_validate(existing_book)
+                }
+            else:
+                # 3. Same ISBN but different metadata = conflict
+                print("Book ISBN Already Exists but book don't. Invalid Input")
+                raise HTTPException(
+                    status_code=409,
+                    detail="ISBN already belongs to a different book"
+                )
+
+        # 4. Create new book entry
+        print("It's a New Book")
+        new_book = BookModel(**book.model_dump())
+        db.add(new_book)
+        db.commit()
+        db.refresh(new_book)
+        print(f"\n\n=========================================================\n")
 
         return {
             "updated": False,
-            "book": new_book
+            "book": BookOut.model_validate(new_book)
         }
     
     except HTTPException:
@@ -106,19 +181,39 @@ def add_book(book: Book) -> dict:
     
 
 
-def update_book(book_id: str, updated: Book) -> BookOut:
-    try:
-        books = BOOKS
-        key = "ISBN" if check_is_isbn(book_id) else "ID"
+def update_book(
+    book_id: str, 
+    book_to_update: Book, 
+    db: Session
+) -> BookOut:
+    """
+    Update a book by ID or ISBN with new data.
+    Args:
+        book_id (str): Book ID or ISBN.
+        updated (Book): Updated book data.
+        db (Session): Database session.
 
-        for idx, book in enumerate(books):
-            if (
-                book.id == int(book_id) or
-                book.isbn == book_id
-            ):
-                updated_book = BookOut(id=book_id, **updated.model_dump())
-                BOOKS[idx] = updated_book
-                return updated_book
+    Returns: BookOut: Updated book data.
+    Raises: HTTPException: If book not found or update fails.
+    """
+
+    # Get ORM instance for update
+    book_orm = get_single_book(book_id, db, as_orm=True)
+    try:
+
+        # Update fields on ORM model
+        for field, value in book_to_update.model_dump().items():
+            if field == "isbn":
+            # Skip updating ISBN
+                continue
+
+            setattr(book_orm, field, value)
+
+        db.commit()
+        db.refresh(book_orm)
+
+        # Return Pydantic schema after update
+        return BookOut.model_validate(book_orm)
 
     except Exception as e:
         raise HTTPException(
@@ -126,18 +221,25 @@ def update_book(book_id: str, updated: Book) -> BookOut:
             detail="An error occurred while updating the book"
         )
 
-    raise HTTPException(status_code=404, detail=f"No book found with {key}: {book_id}")
 
 
+def delete_book(book_id: str, db: Session) -> bool:
+    """
+    Delete a book by ID or ISBN.
+    Args:
+        book_id (str): Book ID or ISBN.
+        db (Session): Database session.
 
-def delete_book(book_id: str) -> bool:
+    Returns: bool: True if deleted.
+    Raises: HTTPException: If book not found or deletion fails.
+    """
+    
+    book_orm = get_single_book(book_id, db, as_orm=True)
+
     try:
-        books = BOOKS
-        key = "ISBN" if check_is_isbn(book_id) else "ID"
-        for idx, book in enumerate(books):
-            if book.id == book_id:
-                del BOOKS[idx]
-                return True
+        db.delete(book_orm)
+        db.commit()
+        return True
  
     except Exception as e:
         raise HTTPException(
@@ -145,52 +247,97 @@ def delete_book(book_id: str) -> bool:
             detail=f"An error occurred while updating the book: {str(e)}"
         )
     
-    raise HTTPException(status_code=404, detail=f"No book found with {key}: {book_id}")
 
 
-
-def issue_book(book_id: str, payload: IssueBook) -> BookIssueRecord:
+def issue_book(
+    book_id: str,
+    payload: IssueBook,
+    db: Session
+) -> BookIssueRecord:
     
+    """
+    Issues a book to a student if available.
+    Args:
+        book_id (str): ID or ISBN of the book to issue.
+        payload (IssueBook): Student ID and issue duration.
+        db (Session): Active database session.
+
+    Returns: BookIssueRecord: Details of the issued book record.
+    Raises: HTTPException: If book/student not found, already issued, or DB error occurs.
+    """
+
     print(f"""\n\n=========== [issue_book({book_id} {payload})] ===========\n""")
 
     # Check if book exists
-    book = get_single_book(book_id)
+    book = get_single_book(book_id, db, as_orm=True)
+    
 
     # Check for available copies
     if book.copies <= 0:
         raise HTTPException(
-            status_code=400, detail="No available copies for this book."
+            status_code=400, 
+            detail="No available copies for this book."
         )
     
     # Check if student exists
-    student = get_student_by_identifier(payload.student_id)
+    student = get_student_by_identifier(payload.student_id, db, as_orm=True)
 
     try:
-        already_issued = any(
-            issued_book.id == book.id and
-            issued_book.student_roll_number == student.roll_number and
-            issued_book.returned_date is None
-            for issued_book in ISSUED_BOOKS
-        )
+
+        # Check if already issued to the student
+        already_issued = db.query(IssuedBookModel).filter(
+            IssuedBookModel.book_id == book.id,
+            IssuedBookModel.student_id == student.id,
+            IssuedBookModel.returned_date.is_(None)
+        ).first()
+        
         if already_issued:
-            raise HTTPException(status_code=400, detail="This book is already issued to the student")
+            print("Aready Issued")
+            raise HTTPException(
+                status_code=400, 
+                detail="This book is already issued to the student"
+            )
 
         issue_date = date.today()
         due_date = issue_date + timedelta(days=payload.duration_days)
 
-        issued_book = BookIssueRecord(
-            id=len(ISSUED_BOOKS) + 1,
+        issued_book = IssuedBookModel(
             book_id=book.id,
-            student_roll_number=student.roll_number,
+            student_id=student.id,
             issue_date=issue_date,
             due_date=due_date,
             returned_date=None,
         )
 
-        ISSUED_BOOKS.append(issued_book)
+        # Use a lock to prevent concurrent modifications
+        db.begin()
+        try:
+            db.add(issued_book)
+            book.copies -= 1
+            print(f"Copies after decrement: {book.copies}")
+            db.commit()
+        except SQLAlchemyError as e:
+            db.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail="A database error occurred while issuing the book"
+            )
 
-        book.copies -= 1 
-        return issued_book
+        db.refresh(issued_book)
+
+        issued_book_dict = {
+            "id": issued_book.id,
+            "book_id": issued_book.book_id,
+            "student_roll_number": student.roll_number,
+            "issue_date": issued_book.issue_date,
+            "due_date": issued_book.due_date,
+            "returned_date": issued_book.returned_date,
+        }
+
+        print("Issuing book: ", issued_book)
+        print(f"\n\n==============================================================\n")
+
+        return BookIssueRecord.model_validate(issued_book_dict)
     
 
     except HTTPException:
@@ -202,3 +349,5 @@ def issue_book(book_id: str, payload: IssueBook) -> BookIssueRecord:
             detail="An error occurred while issuing the book"
         )
 
+
+# =====================================================================

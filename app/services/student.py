@@ -1,10 +1,14 @@
 from fastapi import HTTPException
-from typing import List
+from sqlalchemy.orm import Session
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
+
+from typing import List, Union
 from datetime import date
 import json
 
+from app.models import BookModel, StudentModel
 from app.schemas import Student, BookIssueRecord
-from app.database import BOOKS, STUDENTS, ISSUED_BOOKS
 
 
 def list_students( 
@@ -12,41 +16,43 @@ def list_students(
     semester: int, 
     search: str, 
     page: int, 
-    limit: int 
+    limit: int,
+    db: Session
 ) -> tuple[list[Student], dict]:
-    print("2")
     try:
-        filtered = STUDENTS
+        query = select(StudentModel)
 
-        filters = {}
-        if department:
-            filtered = [s for s in filtered if s.department.lower() == department.lower()]
-            print("3")
-            filters["department"] = department
-        if semester:
-            filtered = [s for s in filtered if s.semester == semester]
-            print("4")
-            filters["semester"] = semester
+        if department: query = query.filter(StudentModel.department.ilike(f"%{department}%"))
+        if semester: query = query.filter(StudentModel.semester == semester)
         if search:
-            print("5")
-            lower_search = search.lower()
-            filtered = [
-                s
-                for s in filtered
-                if lower_search in s.name.lower()
-                or lower_search in s.roll_number.lower()
-                or lower_search in s.phone
-            ]
-            filters["search_value"] = search
+            search = f"%{search.lower()}%"
+            query = query.filter(
+                StudentModel.name.ilike(search) |
+                StudentModel.roll_number.ilike(search) |
+                StudentModel.phone.ilike(search)
+            )
 
-        start = (page - 1) * limit
-        students = filtered[start : start + limit]
+        total = db.scalar(select(func.count()).select_from(query.subquery()))
+
+        students_orm = db.execute(
+            query.offset((page - 1) * limit).limit(limit)
+        ).scalars().all()
+
+        students = [Student.model_validate(s) for s in students_orm]
+
+        filters = {
+            k: v for k, v in {
+                "department": department,
+                "semester": semester,
+                "search": search
+            }.items() if v not in (None, "")
+        }
 
 
         meta_info = {
             "page": page,
             "limit": limit,
-            "total_students": len(filtered),
+            "total_students": total,
             "fetched_count": len(students),
             "filters_applied": filters
         }
@@ -61,20 +67,42 @@ def list_students(
 
 
 
-def get_student_by_identifier(identifier: str) -> Student:
+def get_student_by_identifier(
+    identifier: str, 
+    db: Session,
+    as_orm: bool = False
+) -> Union[StudentModel, Student]:
     print(f"\n\n=========== [get_student_by_identifier({identifier})] ===========\n")
     try:
         id_lower = identifier.lower()
-        for student in STUDENTS:
-            if (
-                student.name.lower() == id_lower or
-                student.roll_number.lower() == id_lower or
-                student.phone == identifier
-            ):
-                print("Student found")
-                print(student.model_dump())
-                print("\n========================================")
-                return student
+        
+        query = select(StudentModel).where(
+            (func.lower(StudentModel.name) == id_lower) |
+            (func.lower(StudentModel.roll_number) == id_lower) |
+            (StudentModel.phone == identifier)
+        )
+        student = db.execute(query).scalars().first()
+
+        if not student:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Student not found for identifier = {identifier}"
+                )
+
+        if as_orm:
+            print("Student ORM : ", student)
+            print(f"\n\n=============================================\n")
+            return student
+
+        # Convert ORM model to Pydantic schema (Student)
+        student = Student.model_validate(student)
+        print("Student pdantic scheme : ", student)
+        print(f"\n\n=============================================\n")
+        return student
+
+
+    except HTTPException:
+        raise
     
     except Exception as e:
         raise HTTPException(
@@ -82,54 +110,71 @@ def get_student_by_identifier(identifier: str) -> Student:
             detail="An error occurred while fetching the student"
         )
     
-    raise HTTPException(status_code=404, detail=f"Student not found for identifier = {identifier}")
 
 
+def add_student(student: Student, db: Session) -> bool:
+    """
+    Add a student to the database after checking for duplicates
+    by roll number, name, or phone number.
+    Args:
+        student (Student): The student data to add.
+        db (Session): SQLAlchemy session for DB access.
 
-def add_student(student: Student) -> bool:
+    Returns: bool: True if student added successfully.
+    Raises: HTTPException: 400 for duplicates, 500 for server error.
+    """
+
+    new_student = StudentModel(**student.model_dump())
+
     try:
-        duplicate_fields = {}
-
-        for existing in STUDENTS:
-            if existing.roll_number.lower() == student.roll_number.lower():
-                duplicate_fields["roll number"] = student.roll_number
-            if existing.name.lower() == student.name.lower():
-                duplicate_fields["name"] = student.name
-            if existing.phone == student.phone:
-                duplicate_fields["phone"] = student.phone
-
-        if duplicate_fields:
-            fields_str = ", ".join(
-                [f"{label}: {value}" for label, value in duplicate_fields.items()]
-            )
-            raise HTTPException(
-                status_code=400, detail=f"Student with {fields_str} already exists."
-            )
-
-        STUDENTS.append(student)
+        db.add(new_student)
+        db.commit()
         return True
+
+    except IntegrityError as e:
+        db.rollback()
+        error_msg = str(e.orig).lower()
+
+        # Collect all fields that caused the uniqueness constraint violation
+        duplicate_fields = []
+        if "roll_number" in error_msg:
+            duplicate_fields.append(("roll number", student.roll_number))
+        if "email" in error_msg:
+            duplicate_fields.append(("email", student.email))
+        if "phone" in error_msg:
+            duplicate_fields.append(("phone", student.phone))
+
+        if not duplicate_fields:
+            raise HTTPException(
+                status_code=400,
+                detail="Student with given data already exists."
+            )
+
+        # Create a detailed error message
+        error_details = ", ".join([f"{field}: {value}" for field, value in duplicate_fields])
+        raise HTTPException(
+            status_code=400,
+            detail=f"Student with the following duplicate fields already exists: {error_details}."
+        )
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected error occurred while adding the student."
+        )
+
+
+
+def get_student_books(identifier: str, db: Session) -> List[BookIssueRecord]:
     
-    except HTTPException:
-        raise
+    student = get_student_by_identifier(identifier, db, as_orm=True)
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="An error occurred while adding the student")
-
-
-
-def get_student_books(identifier: str) -> List[BookIssueRecord]:
-    # Find student by name or roll number or phone (case insensitive for strings)
-    student = get_student_by_identifier(identifier)
-
-    # Find issued books for that student
     try:
-
-        issued_books = [ 
-            ib for ib in ISSUED_BOOKS 
-            if ib.student_roll_number == student.roll_number
-        ]
-
-        return issued_books
+        print("1")
+        issued_books = student.issued_books
+        print("2")
+        return [BookIssueRecord.model_validate(book) for book in issued_books]
 
     except Exception as e:
         raise HTTPException(
@@ -139,40 +184,46 @@ def get_student_books(identifier: str) -> List[BookIssueRecord]:
 
 
 
-def return_book(student_id: str, issued_book_id: int) -> BookIssueRecord:
+def return_book(
+    identifier: str,
+    issued_book_id: int,
+    db: Session
+) -> BookIssueRecord:
     
-    # Retrieve the student
-    student = get_student_by_identifier(student_id)
 
-    issued_books = get_student_books(student.roll_number)
+    student = get_student_by_identifier(identifier, db, as_orm=True)
+
+    # Find the specific issued book by ID from the student's issued books
+    issued_book = next((book for book in student.issued_books if book.id == issued_book_id), None)
+
+    if not issued_book:
+        raise HTTPException(status_code=404, detail="Issued book not found")
+
+    if issued_book.returned_date:
+        raise HTTPException(status_code=400, detail="Book has already been returned")
 
     try:
-
-        book_to_return = None
-        for book in issued_books:
-            if book.id == issued_book_id:
-                book_to_return = book
-                break
-
-
-        if not book_to_return or book_to_return.returned_date:
-            raise HTTPException(status_code=400, detail="No Books isued to the Student or Book has already been returned")
-
         # Update the returned date to today
-        book_to_return.returned_date = date.today()
-       
-        # Increase the book's available copies
-        for book in BOOKS:
-            if book.id == book_to_return.book_id:
-                book.copies += 1
-                break
+        issued_book.returned_date = date.today()
 
-        return book_to_return
+        # Increase the book's available copies
+        book = db.query(BookModel).filter(BookModel.id == issued_book.book_id).first()
+        # book = get_single_book(str(issued_book.book_id), db, as_orm=True)
+
+        if book:
+            book.copies += 1
+
+        db.commit()
+        db.refresh(issued_book)
+
+        return BookIssueRecord.model_validate(issued_book)
+       
 
     except HTTPException:
         raise
 
     except Exception as e:
+        db.rollback()
         raise HTTPException(
             status_code=500,
             detail="An error occurred while returning the book"

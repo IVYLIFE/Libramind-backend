@@ -1,2 +1,2 @@
-from .book import *
-from .student import *
+# from .book import *
+# from .student import *

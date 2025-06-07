@@ -24,7 +24,23 @@ class Book(BaseModel):
 
 
 class BookOut(Book):
-    id: int = Field(ge=1)
+    id: int = Field(ge=1, description="Unique identifier for the book")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(
+        from_attributes = True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": 1,
+                    "title": "Sample Title",
+                    "author": "Sample Author",
+                    "isbn": "1234567890",
+                    "category": "Sample Category",
+                    "copies": 1,
+                }
+            ]
+        }
+    )
+
+
+# =====================================================================

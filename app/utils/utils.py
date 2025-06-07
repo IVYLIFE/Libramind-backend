@@ -24,6 +24,7 @@ def serialize(item):
 def check_is_isbn(input_str: str) -> bool:
     """Check if the input string is likely an ISBN."""
     isbn_lengths = {10, 13}
+    input_str = input_str.replace("-", "").strip()
     if len(input_str) not in isbn_lengths:
         return False
 

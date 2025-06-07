@@ -4,7 +4,7 @@ class Student(BaseModel):
     
     name: str = Field(
         ..., 
-        min_length=2, 
+        min_length=3, 
         description="Full name of the student"
     )
 
@@ -32,6 +32,7 @@ class Student(BaseModel):
     )
     
     email: EmailStr = Field(..., description="Valid email address")
+
 
     model_config = ConfigDict(
         from_attributes=True,
