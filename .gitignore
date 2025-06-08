@@ -11,6 +11,8 @@ __pycache__/
 # 📦 Virtual environment
 .LibraMind/
 
+# 📂 Logs 
+logs/
 
 # 📁 Environment files
 .env

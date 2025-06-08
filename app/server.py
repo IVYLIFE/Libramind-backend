@@ -5,11 +5,17 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text, inspect
 from contextlib import asynccontextmanager
 
+import logging
+import logging.config
+
 from app.database import Base, engine
 from app.utils import error_response
 from app.api import books, students
+from app.logging_config import LOGGING_CONFIG
 
 
+logging.config.dictConfig(LOGGING_CONFIG)
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -104,6 +110,7 @@ def db_check():
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     detail = exc.detail if exc.detail else "An HTTP error occurred"
+    # logging.warning(f"❌ HTTP Exception : Not Found: {request.method} {request.url}")
     return error_response(
         status_code=exc.status_code,
         detail=detail
@@ -112,7 +119,6 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 # Request validation errors
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-
     detail = [
         {
             "fieldname": error['loc'][-1], 
@@ -128,6 +134,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 # Catch-all fallback
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
+    # logging.error(f"❌ Unhandled exception: {exc}", exc_info=True)
     return error_response(
         status_code=500,
         detail=str(exc)
