@@ -16,7 +16,6 @@ SessionLocal = sessionmaker(
     autoflush=False,
     bind=engine
 )
-# AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 Base = declarative_base()
 

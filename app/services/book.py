@@ -254,6 +254,8 @@ def issue_book(
     Raises: HTTPException: If book/student not found, already issued, or DB error occurs.
     """
 
+    print(f"""\n\n=========== [issue_book({book_id} {payload})] ===========\n""")
+
     # Check if book exists
     book = get_single_book(book_id, db, as_orm=True)
     
@@ -303,7 +305,7 @@ def issue_book(
         issued_book_dict = {
             "id": issued_book.id,
             "book_id": issued_book.book_id,
-            "student_roll_number": student.roll_number,
+            "student_id": student.id,
             "issue_date": issued_book.issue_date,
             "due_date": issued_book.due_date,
             "returned_date": issued_book.returned_date,
