@@ -14,13 +14,13 @@ CREATE TABLE books (
     author VARCHAR(255) NOT NULL CHECK (char_length(author) >= 3),
     isbn VARCHAR(13) NOT NULL CHECK (char_length(isbn) >= 10),
     category VARCHAR(100) NOT NULL CHECK (char_length(category) >= 3),
-    copies INT NOT NULL CHECK (copies >= 1)
+    copies INT NOT NULL CHECK (copies >= 0)
 );
 
 -- Create the students table
 CREATE TABLE students (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL CHECK (char_length(title) >= 3),
+    name VARCHAR(100) NOT NULL CHECK (char_length(name) >= 3),
     roll_number VARCHAR(20) UNIQUE NOT NULL,
     department VARCHAR(50) NOT NULL,
     semester INTEGER NOT NULL CHECK (semester BETWEEN 1 AND 8),

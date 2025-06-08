@@ -15,3 +15,6 @@ class IssuedBookModel(Base):
     # Relationships to Book and Student
     student = relationship("StudentModel", back_populates="issued_books")
     book = relationship("BookModel", back_populates="issued_records")
+
+
+# =====================================================================

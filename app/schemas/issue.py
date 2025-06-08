@@ -23,10 +23,13 @@ class IssueBook(BaseModel):
 class BookIssueRecord(BaseModel):
     id: int = Field(..., description="Unique ID of the issued book record", ge=1)
     book_id: int = Field(..., description="Details of the issued book", ge=1)
-    student_roll_number: str = Field(..., description="Roll number of the student to whom the book is issued")
+    student_id: int = Field(..., description="Id of the student to whom the book is issued")
     issue_date: date = Field(..., description="Date when the book was issued")
     due_date: date = Field(..., description="Expected return date for the book")
     returned_date: Optional[date] = Field(None, description="Actual date when the book was returned")
 
     class Config:
         from_attributes = True
+
+
+# =====================================================================

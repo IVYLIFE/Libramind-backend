@@ -57,6 +57,8 @@ class BookIssueRecordResponse(SuccessResponse):
 
 # ==============================
 # ✅ 4. Success Response with Data and Meta
+# 1. BookListResponse
+# 2. StudentListResponse
 # ==============================
 
 
@@ -97,3 +99,5 @@ class StudentListResponse(SuccessResponse):
     class Config:
         title = "StudentListResponse"
 
+
+# =====================================================================

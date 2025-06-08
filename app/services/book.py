@@ -21,7 +21,6 @@ def list_books(
     limit: int, 
     db: Session
 ) -> tuple[list[BookOut], dict]:
-    print("1")
     try:
         query = select(BookModel)
 
@@ -77,35 +76,31 @@ def get_single_book(
         HTTPException 500 on server error.
     """
 
-    print(f"\n\n=========== [get_single_book({book_id})] ===========\n")
     try:
 
         book_id = book_id.replace("-", "").strip()
-        key = "isbn" if check_is_isbn(book_id) else "id"
-
-        query = select(BookModel).where(
-            (BookModel.id == int(book_id)) | (BookModel.isbn == book_id)
-        )
+        
+        if check_is_isbn(book_id):
+            query = select(BookModel).where(BookModel.isbn == book_id)
+            key = "isbn"
+        else:
+            query = select(BookModel).where(BookModel.id == int(book_id))
+            key = "id"
 
 
         book = db.execute(query).scalars().first()
 
         if not book:
-            print("Raising Error")
             raise HTTPException(
                 status_code=404,
                 detail=f"No book found with {key.upper()}: {book_id}"
             )
         
         if as_orm:
-            print("Book ORM : ", book)
-            print(f"\n\n=========================================================\n")
             return book
 
         # Convert ORM model to Pydantic schema (BookOut)
         book = BookOut.model_validate(book)
-        print("Book Model : ", book)
-        print(f"\n\n=========================================================\n")
         return book
 
 
@@ -128,9 +123,6 @@ def add_book(book: Book, db: Session) -> dict:
     Raises: HTTPException: On ISBN conflict or DB errors.
     """
 
-    print(f"\n\n=========== [add_book({book})] ===========\n")
-
-
     try:
         # 1. Check if book already exists by ISBN
         query = select(BookModel).where((BookModel.isbn == book.isbn))
@@ -144,7 +136,6 @@ def add_book(book: Book, db: Session) -> dict:
                 existing_book.category == book.category
             ):
                 existing_book.copies += book.copies
-                print("It's an existing Book update copy")
                 db.commit()
                 db.refresh(existing_book)
 
@@ -154,19 +145,16 @@ def add_book(book: Book, db: Session) -> dict:
                 }
             else:
                 # 3. Same ISBN but different metadata = conflict
-                print("Book ISBN Already Exists but book don't. Invalid Input")
                 raise HTTPException(
                     status_code=409,
                     detail="ISBN already belongs to a different book"
                 )
 
         # 4. Create new book entry
-        print("It's a New Book")
         new_book = BookModel(**book.model_dump())
         db.add(new_book)
         db.commit()
         db.refresh(new_book)
-        print(f"\n\n=========================================================\n")
 
         return {
             "updated": False,
@@ -266,8 +254,6 @@ def issue_book(
     Raises: HTTPException: If book/student not found, already issued, or DB error occurs.
     """
 
-    print(f"""\n\n=========== [issue_book({book_id} {payload})] ===========\n""")
-
     # Check if book exists
     book = get_single_book(book_id, db, as_orm=True)
     
@@ -292,7 +278,6 @@ def issue_book(
         ).first()
         
         if already_issued:
-            print("Aready Issued")
             raise HTTPException(
                 status_code=400, 
                 detail="This book is already issued to the student"
@@ -309,19 +294,9 @@ def issue_book(
             returned_date=None,
         )
 
-        # Use a lock to prevent concurrent modifications
-        db.begin()
-        try:
-            db.add(issued_book)
-            book.copies -= 1
-            print(f"Copies after decrement: {book.copies}")
-            db.commit()
-        except SQLAlchemyError as e:
-            db.rollback()
-            raise HTTPException(
-                status_code=500,
-                detail="A database error occurred while issuing the book"
-            )
+        db.add(issued_book)
+        book.copies -= 1
+        db.commit()
 
         db.refresh(issued_book)
 
@@ -333,9 +308,6 @@ def issue_book(
             "due_date": issued_book.due_date,
             "returned_date": issued_book.returned_date,
         }
-
-        print("Issuing book: ", issued_book)
-        print(f"\n\n==============================================================\n")
 
         return BookIssueRecord.model_validate(issued_book_dict)
     

@@ -3,10 +3,6 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import SQLAlchemyError
 
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from typing import AsyncGenerator
-
-
 from app.database.config import settings
 
 engine = create_engine(
@@ -37,18 +33,6 @@ def get_db():
         raise
     finally:
         db.close()
-
-
-
-# 
-# async def get_db() -> AsyncGenerator[AsyncSession, None]:
-#     async with AsyncSessionLocal() as session:
-#         try:
-#             yield session
-#             await session.commit()
-#         except Exception:
-#             await session.rollback()
-#             raise
 
 
 # =====================================================================

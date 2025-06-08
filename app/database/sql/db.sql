@@ -20,6 +20,6 @@ GRANT ALL PRIVILEGES ON DATABASE libramind TO skinnysky;
 
 
 -- 1. sudo su - postgres psql          [ Login to psql console as postgres user ]
--- 2. psql -U skinnysky -d libramind   [ Login to psql console with the created user ]
--- 3. \i app/database/sql/db.sql       [ Run the script to create DB and User/Role ]
--- 4. \i app/database/sql/tables.sql   [ Run the script to create tables and add records ]
+-- 2. \i app/database/sql/db.sql       [ Run the script to create DB and User/Role ]
+-- 3. \i app/database/sql/tables.sql   [ Run the script to create tables and add records ]
+-- 4. psql -U skinnysky -d libramind   [ Login to psql console with the created user ]

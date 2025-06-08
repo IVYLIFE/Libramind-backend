@@ -25,11 +25,11 @@ router = APIRouter(prefix="/books", tags=["books"])
     responses={500: {"model": ErrorResponse}}
 )
 def read_books(
-    title    : Optional[str] = Query(None),
-    author   : Optional[str] = Query(None),
-    category : Optional[str] = Query(None),
-    page     : int           = Query(1, ge=1),
-    limit    : int           = Query(10, ge=1, le=50),
+    title    : Optional[str] = Query(None, description="Filter by book title"),
+    author   : Optional[str] = Query(None, description="Filter by book author"),
+    category : Optional[str] = Query(None, description="Filter by book category"),
+    page     : int           = Query(1, ge=1, description="Page number for pagination"),
+    limit    : int           = Query(10, ge=1, le=50, description="Number of books per page"),
     db       : Session       = Depends(get_db),
 ):
     books, meta = services.list_books(title, author, category, page, limit, db)
@@ -81,7 +81,6 @@ def update_book(
     book_id: str = Path(..., description="Book ID/ISBN as unique identifier of Book"),
     db: Session = Depends(get_db)
 ):
-    print("Update is called")
     book = services.update_book(book_id, updated, db)
 
     return success_response(
@@ -97,7 +96,6 @@ def delete_book(
     book_id: str = Path(..., description="Book ID/ISBN as unique identifier of Book"),
     db: Session = Depends(get_db)
 ):
-    print("Delete is called")
     if services.delete_book(book_id, db): 
         return success_response(
             status_code=200,

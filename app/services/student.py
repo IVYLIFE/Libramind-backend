@@ -72,7 +72,6 @@ def get_student_by_identifier(
     db: Session,
     as_orm: bool = False
 ) -> Union[StudentModel, Student]:
-    print(f"\n\n=========== [get_student_by_identifier({identifier})] ===========\n")
     try:
         id_lower = identifier.lower()
         
@@ -90,14 +89,10 @@ def get_student_by_identifier(
                 )
 
         if as_orm:
-            print("Student ORM : ", student)
-            print(f"\n\n=============================================\n")
             return student
 
         # Convert ORM model to Pydantic schema (Student)
         student = Student.model_validate(student)
-        print("Student pdantic scheme : ", student)
-        print(f"\n\n=============================================\n")
         return student
 
 
@@ -167,13 +162,12 @@ def add_student(student: Student, db: Session) -> bool:
 
 
 def get_student_books(identifier: str, db: Session) -> List[BookIssueRecord]:
-    
+
     student = get_student_by_identifier(identifier, db, as_orm=True)
 
     try:
-        print("1")
-        issued_books = student.issued_books
-        print("2")
+        all_issued_books = student.issued_books
+        issued_books = [book for book in all_issued_books if book.returned_date is None]
         return [BookIssueRecord.model_validate(book) for book in issued_books]
 
     except Exception as e:
@@ -184,17 +178,16 @@ def get_student_books(identifier: str, db: Session) -> List[BookIssueRecord]:
 
 
 
-def return_book(
+def return_issued_book(
     identifier: str,
     issued_book_id: int,
     db: Session
 ) -> BookIssueRecord:
     
-
     student = get_student_by_identifier(identifier, db, as_orm=True)
 
     # Find the specific issued book by ID from the student's issued books
-    issued_book = next((book for book in student.issued_books if book.id == issued_book_id), None)
+    issued_book = next((book for book in student.issued_books if book.book_id == issued_book_id), None)
 
     if not issued_book:
         raise HTTPException(status_code=404, detail="Issued book not found")
@@ -228,3 +221,6 @@ def return_book(
             status_code=500,
             detail="An error occurred while returning the book"
         )
+
+
+# =====================================================================

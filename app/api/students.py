@@ -25,9 +25,7 @@ def fetch_students(
     limit      : int           = Query(10, description="Number of students per page", ge=1),
     db         : Session       = Depends(get_db),
 ):
-    print("1")
     students, meta = services.list_students(department, semester, search, page, limit, db)
-    print("6")
     
     return success_response(
         status_code=status.HTTP_200_OK,
@@ -88,7 +86,7 @@ def return_issued_book(
     issued_book_id: int = Path(..., gt=0),
     db: Session = Depends(get_db)
 ):
-    book_to_return = services.return_book(identifier, issued_book_id, db)
+    book_to_return = services.return_issued_book(identifier, issued_book_id, db)
 
     return success_response(
         status_code=201,
@@ -97,3 +95,4 @@ def return_issued_book(
     )
 
 
+# =====================================================================

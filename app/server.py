@@ -103,9 +103,6 @@ def db_check():
 # Custom HTTPException override
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-    print("Http Exception Occoured")    
-    get_error_info(exc)
-
     detail = exc.detail if exc.detail else "An HTTP error occurred"
     return error_response(
         status_code=exc.status_code,
@@ -115,8 +112,6 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 # Request validation errors
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    print("Validation exception occurred")
-    get_error_info(exc)
 
     detail = [
         {
@@ -133,20 +128,10 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 # Catch-all fallback
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    print("Unhandled exception occurred")
-    get_error_info(exc)
     return error_response(
         status_code=500,
         detail=str(exc)
     )
 
 
-def get_error_info(exc):
-    error_type = type(exc).__name__
-    error_module = type(exc).__module__
-    error_category = "RuntimeError" if isinstance(exc, RuntimeError) else "Unknown"
-
-    print(f"Type: {error_type}")
-    print(f"Module: {error_module}")
-    print(f"Category: {error_category}")
-    print(f"Exception: {exc}")
+# =====================================================================
