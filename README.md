@@ -304,6 +304,115 @@ NOTE : For Complete API Documentation Refer to Swagger UI Docs
     curl -X PATCH "http://localhost:8000/students/CS101/books/15"
     ```
 </br>
+</br>
+
+
+## 📚 Libramind - Overdue Reminder System
+
+This subsystem handles **automated overdue tracking and email remainder** in the Libramind backend, using **Celery + Redis + SendGrid**.
+
+---
+
+### 🚀 Architecture Overview
+
+### 🔧 Components:
+- **Celery**: Background task queue.
+- **Redis**: Broker for Celery (used to queue and manage tasks).
+- **Brevo (Sendinblue)**: Email delivery provider (used to send remainder).
+- **Scheduler**: Runs periodic tasks (using Celery Beat or custom logic).
+- **Email Utility:** Sends reminder emails using SMTP.
+- **Database:** Uses `issued_books` table for due/return tracking.
+</br>
+
+---
+
+## 🧠 System Design
+
+1. **Periodic Celery task** runs daily.
+2. It identifies:
+   - Issued books where `returned_date IS NULL`
+   - And `due_date <= today + 5`
+3. For each qualifying record:
+   - An email is queued using **Brevo (Sendinblue)**.
+4. If sending fails:
+   - Celery retries the task automatically.
+
+---
+</br>
+
+
+## 📬 Email Reminder Flow
+
+- Subject: `"Library Reminder: Book Due Soon"`
+- Body includes:
+  - Book title
+  - Due date
+  - Days remaining
+  - Instructions to return
+
+---
+</br>
+
+
+## 🛠️ Setup Instructions
+
+### 1. Install Python Packages
+
+```bash
+pip install celery[redis] redis
+```
+
+### 2. Start Redis Server
+
+```bash
+docker run -d -p 6379:6379 redis
+```
+
+### 3. Set Environment Variables in `.env`
+
+```env
+REDIS_URL=redis://localhost:6379/0
+SMTP_SERVER=smtp-relay.brevo.com
+SMTP_PORT=587
+SMTP_USERNAME=your_verified_email@example.com
+SMTP_PASSPASSWORD=your_brevo_api_key
+SMTP_FROM_EMAIL=library@example.com
+
+```
+
+### 4. Run Celery Worker
+
+```bash
+celery -A app.celery_worker.celery_app worker --loglevel=info
+```
+
+### 5. Trigger the Daily Reminder Task
+
+(Manual call for testing)
+
+```bash
+celery -A app.celery_worker.celery_app call app.scheduler.daily_tasks.send_daily_remainder
+```
+
+
+## ✅ Key Features
+
+- Safe to use in production
+- Decouples reminder logic from API
+- Daily automated email triggers
+- Duplicate-proof: one reminder per student-book per day
+- Easily extendable to SMS/WhatsApp
+
+---
+
+## 📈 Future Enhancements
+
+- Dashboard for admins to track email history
+- Custom schedule intervals (every 12h, etc.)
+
+---
+
+> This module ensures overdue tracking and notifications are **fully automated, reliable, and scalable**.
 
 
 ## 👤 Author

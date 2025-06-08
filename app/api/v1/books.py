@@ -43,11 +43,32 @@ def read_books(
 
 
 
-@router.get("/{book_id}", response_model=BookResponse )
+
+@router.get("/overdue-books", response_model=BookIssueRecordResponse)
+def get_overdue_books(db: Session = Depends(get_db)):
+    print("2")
+
+    overdue_books = services.get_overdue_books(db)
+
+    return success_response(
+        status_code=status.HTTP_200_OK,
+        message="Overdue Books fetched successfully",
+        data=overdue_books
+    )
+
+
+
+@router.get(
+    "/{book_id}",
+    response_model=BookResponse,
+    responses={404: {"model": ErrorResponse}}
+)
 def read_book(
     book_id: str = Path(...,  description="Book ID/ISBN as unique identifier of Book"),
     db: Session = Depends(get_db)
 ):
+    print("1")
+    
     book = services.get_single_book(book_id, db)
 
     return success_response(
@@ -67,7 +88,7 @@ def create_book(book: Book, db: Session = Depends(get_db)):
         message = "Book already exists. Copies updated."
     
     return success_response(
-        status_code=201,
+        status_code=status.HTTP_201_CREATED,
         message=message,
         data=None,
         meta=None
@@ -75,7 +96,11 @@ def create_book(book: Book, db: Session = Depends(get_db)):
 
 
     
-@router.put("/{book_id}", response_model=BookResponse )
+@router.put(
+    "/{book_id}",
+    response_model=BookResponse,
+    responses={404: {"model": ErrorResponse}}
+)
 def update_book(
     updated: Book, 
     book_id: str = Path(..., description="Book ID/ISBN as unique identifier of Book"),
@@ -84,27 +109,34 @@ def update_book(
     book = services.update_book(book_id, updated, db)
 
     return success_response(
-        status_code=200,
+        status_code=status.HTTP_200_OK,
         message="Book udated successfully",
         data=book,
     )
 
 
 
-@router.delete("/{book_id}", response_model=SuccessResponse )
+@router.delete(
+    "/{book_id}",
+    response_model=SuccessResponse,
+    responses={404: {"model": ErrorResponse}}
+)
 def delete_book(
     book_id: str = Path(..., description="Book ID/ISBN as unique identifier of Book"),
     db: Session = Depends(get_db)
 ):
     if services.delete_book(book_id, db): 
         return success_response(
-            status_code=200,
+            status_code=status.HTTP_200_OK,
             message="Book Deleted Successfully"
         )
 
 
 
-@router.post("/{book_id}", response_model=BookIssueRecordResponse, status_code=201)
+@router.post(
+    "/{book_id}",
+    response_model=BookIssueRecordResponse,
+)
 def issue_book_to_student(
     book_id: str = Path(..., description="Book ID/ISBN as unique identifier of Book"),
     payload: IssueBook = ...,
@@ -113,7 +145,7 @@ def issue_book_to_student(
     issuance_record = services.issue_book(book_id, payload, db)
 
     return success_response(
-        status_code=201,
+        status_code=status.HTTP_201_CREATED,
         message="Book issued successfully",
         data=issuance_record
     )

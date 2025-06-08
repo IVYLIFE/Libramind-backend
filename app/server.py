@@ -11,11 +11,11 @@ import logging.config
 from app.database import Base, engine
 from app.utils import error_response
 from app.api import books, students
-from app.logging_config import LOGGING_CONFIG
+# from app.logging_config import LOGGING_CONFIG
 
 
-logging.config.dictConfig(LOGGING_CONFIG)
-logger = logging.getLogger(__name__)
+# logging.config.dictConfig(LOGGING_CONFIG)
+# logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

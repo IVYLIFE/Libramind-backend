@@ -9,7 +9,7 @@ from datetime import date, timedelta
 
 from app.models import BookModel, IssuedBookModel
 from app.schemas import Book, BookOut, BookIssueRecord, IssueBook
-from app.services.student import get_student_by_identifier
+from app.services.student import book_issue_record_schema, get_student_by_identifier
 from app.utils.utils import check_is_isbn
 
 
@@ -62,7 +62,6 @@ def get_single_book(
     db: Session,
     as_orm: bool = False
 ) -> Union[BookModel, BookOut]:
-    
     """
     Fetch a single book by ID or ISBN from the database.
     Args:
@@ -302,16 +301,8 @@ def issue_book(
 
         db.refresh(issued_book)
 
-        issued_book_dict = {
-            "id": issued_book.id,
-            "book_id": issued_book.book_id,
-            "student_id": student.id,
-            "issue_date": issued_book.issue_date,
-            "due_date": issued_book.due_date,
-            "returned_date": issued_book.returned_date,
-        }
+        return book_issue_record_schema(issued_book)
 
-        return BookIssueRecord.model_validate(issued_book_dict)
     
 
     except HTTPException:
@@ -321,6 +312,38 @@ def issue_book(
         raise HTTPException(
             status_code=500,
             detail="An error occurred while issuing the book"
+        )
+
+
+
+def get_overdue_books(db: Session) -> list[BookIssueRecord]:
+    """
+    Fetch all books that are currently overdue (not returned and past due date).
+
+    Args:
+        db (Session): Active database session.
+
+    Returns:
+        List[BookIssueRecord]: List of overdue issued books with is_overdue = True
+
+    Raises:
+        HTTPException: If any unexpected database error occurs.
+    """
+
+    print(f"\n\n\n get_overdue_books() \n\n\n")
+    try:
+        overdue_books = db.query(IssuedBookModel).filter(
+            IssuedBookModel.returned_date.is_(None),
+            IssuedBookModel.due_date < date.today()
+        ).all()
+
+        print(overdue_books)
+        return [book_issue_record_schema(book) for book in overdue_books]
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while fetching overdue books"
         )
 
 

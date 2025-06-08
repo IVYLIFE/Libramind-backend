@@ -19,6 +19,17 @@ class Settings(BaseSettings):
     DB_PORT: Optional[int] = Field(None, env="DB_PORT")
     DB_NAME: Optional[str] = Field(None, env="DB_NAME")
 
+
+    # SMTP settings
+    # These are used for sending emails, e.g., for password resets or notifications. 
+    SMTP_SERVER: str
+    SMTP_PORT: int
+    SMTP_USERNAME: str
+    SMTP_PASSWORD: str
+    SMTP_FROM_EMAIL: str
+    REDIS_URL: str
+
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property

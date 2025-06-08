@@ -27,6 +27,8 @@ class BookIssueRecord(BaseModel):
     issue_date: date = Field(..., description="Date when the book was issued")
     due_date: date = Field(..., description="Expected return date for the book")
     returned_date: Optional[date] = Field(None, description="Actual date when the book was returned")
+    is_overdue: bool = Field(..., description="Whether the book is overdue")
+
 
     class Config:
         from_attributes = True

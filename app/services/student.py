@@ -7,8 +7,23 @@ from typing import List, Union
 from datetime import date
 import json
 
-from app.models import BookModel, StudentModel
+from app.models import BookModel, IssuedBookModel, StudentModel
 from app.schemas import Student, BookIssueRecord
+
+
+# utility function
+def book_issue_record_schema(model: IssuedBookModel) -> BookIssueRecord:
+    today = date.today()
+    is_overdue = model.returned_date is None and today > model.due_date
+    return BookIssueRecord(
+        id=model.id,
+        book_id=model.book_id,
+        student_id=model.student_id,
+        issue_date=model.issue_date,
+        due_date=model.due_date,
+        returned_date=model.returned_date,
+        is_overdue=is_overdue
+    )
 
 
 def list_students( 
@@ -168,7 +183,8 @@ def get_student_books(identifier: str, db: Session) -> List[BookIssueRecord]:
     try:
         all_issued_books = student.issued_books
         issued_books = [book for book in all_issued_books if book.returned_date is None]
-        return [BookIssueRecord.model_validate(book) for book in issued_books]
+        return [book_issue_record_schema(book) for book in issued_books]
+
 
     except Exception as e:
         raise HTTPException(
@@ -209,7 +225,7 @@ def return_issued_book(
         db.commit()
         db.refresh(issued_book)
 
-        return BookIssueRecord.model_validate(issued_book)
+        return book_issue_record_schema(issued_book)
        
 
     except HTTPException:
